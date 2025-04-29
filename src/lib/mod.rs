@@ -139,41 +139,52 @@ pub fn grab_pointer_set_cursor(conn: &xcb::Connection, root: u32) -> bool {
     false
 }
 
-pub fn find_escape_keycode(conn: &xcb::Connection) -> xcb::Keycode {
-    // https://stackoverflow.com/questions/18689863/obtain-keyboard-layout-and-keysyms-with-xcb
+pub fn find_escape_keycodes(conn: &xcb::Connection) -> Vec<xcb::Keycode> {
     let setup = conn.get_setup();
-    let cookie = xcb::get_keyboard_mapping(
-        &conn,
-        setup.min_keycode(),
-        setup.max_keycode() - setup.min_keycode() + 1,
-    );
-    let reply = cookie.get_reply().expect("failed to get keyboard mapping");
+    let min = setup.min_keycode();
+    let max = setup.max_keycode();
+    let count = max - min + 1;
 
-    let escape_index = reply
+    let reply = xcb::get_keyboard_mapping(conn, min, count)
+        .get_reply()
+        .expect("failed to get keyboard mapping");
+    let syms_per_code = reply.keysyms_per_keycode() as usize;
+
+    reply
         .keysyms()
-        .iter()
-        .position(|&keysym| keysym == ESC_KEYSYM)
-        .expect("failed to find escape keysym");
-    (escape_index / reply.keysyms_per_keycode() as usize) as u8 + setup.min_keycode()
+        .chunks(syms_per_code)
+        .enumerate()
+        .filter_map(|(i, chunk)| {
+            if chunk.iter().any(|&keysym| keysym == ESC_KEYSYM) {
+                Some(min + i as u8)
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
-pub fn grab_key(conn: &xcb::Connection, root: u32, keycode: u8) {
-    for mask in 0..=KEY_GRAB_MASK_MAX {
-        xcb::grab_key(
-            &conn,
-            true,
-            root,
-            mask as u16,
-            keycode,
-            xcb::GRAB_MODE_ASYNC as u8,
-            xcb::GRAB_MODE_ASYNC as u8,
-        );
+pub fn grab_keys(conn: &xcb::Connection, root: u32, keycodes: &[xcb::Keycode]) {
+    for &keycode in keycodes {
+        for mask in 0..=KEY_GRAB_MASK_MAX {
+            xcb::grab_key(
+                conn,
+                true,
+                root,
+                mask as u16,
+                keycode,
+                xcb::GRAB_MODE_ASYNC as u8,
+                xcb::GRAB_MODE_ASYNC as u8,
+            );
+        }
     }
 }
 
-pub fn ungrab_key(conn: &xcb::Connection, root: u32, keycode: u8) {
-    for mask in 0..=KEY_GRAB_MASK_MAX {
-        xcb::ungrab_key(&conn, keycode, root, mask as u16);
+pub fn ungrab_keys(conn: &xcb::Connection, root: u32, keycodes: &[xcb::Keycode]) {
+    for &keycode in keycodes {
+        for mask in 0..=KEY_GRAB_MASK_MAX {
+            xcb::ungrab_key(conn, keycode, root, mask as u16);
+        }
     }
 }
 

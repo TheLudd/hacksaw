@@ -4,8 +4,8 @@ mod lib;
 
 use lib::parse_args::Opt;
 use lib::{
-    find_escape_keycode, get_window_at_point, get_window_geom, grab_key, grab_pointer_set_cursor,
-    set_shape, set_title, ungrab_key, HacksawResult, CURSOR_GRAB_TRIES,
+    find_escape_keycodes, get_window_at_point, get_window_geom, grab_keys, grab_pointer_set_cursor,
+    set_shape, set_title, ungrab_keys, HacksawResult, CURSOR_GRAB_TRIES,
 };
 use structopt::StructOpt;
 
@@ -52,8 +52,8 @@ fn main() -> Result<(), String> {
         ));
     }
 
-    let escape_keycode = find_escape_keycode(&conn);
-    grab_key(&conn, root, escape_keycode);
+    let escape_keycodes = find_escape_keycodes(&conn);
+    grab_keys(&conn, root, &escape_keycodes);
 
     let screen_rect =
         xcb::Rectangle::new(0, 0, screen.width_in_pixels(), screen.height_in_pixels());
@@ -211,7 +211,7 @@ fn main() -> Result<(), String> {
     }
 
     xcb::ungrab_pointer(&conn, xcb::CURRENT_TIME);
-    ungrab_key(&conn, root, escape_keycode);
+    ungrab_keys(&conn, root, &escape_keycodes);
     xcb::unmap_window(&conn, window);
     xcb::destroy_window(&conn, window);
     conn.flush();
